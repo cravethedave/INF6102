@@ -1,7 +1,8 @@
 import argparse
-import solver_naive
-import solver_advanced
 import time
+
+import solver_advanced
+import solver_naive
 from utils import Instance
 
 
@@ -20,7 +21,7 @@ def parse_arguments():
 
 if __name__ == '__main__':
     args = parse_arguments()
-    instance = Instance(args.group,args.number)
+    instance = Instance(args.group, args.number)
 
     print("***********************************************************")
     print("[INFO] Start the solving: artwall design")
@@ -43,8 +44,7 @@ if __name__ == '__main__':
     else:
         raise Exception("This agent does not exist")
 
-
-    solving_time = round((time.time() - start_time) / 60,2)
+    solving_time = round((time.time() - start_time) / 60, 2)
 
     # You can disable the display if you do not want to generate the visualization
     instance.visualize_solution(solution, visualisation_file=args.visualisation_file)

@@ -1,7 +1,7 @@
 from utils import *
 
-class CustomWall(Wall):
 
+class CustomWall(Wall):
     """ You are completely free to extend classes defined in utils,
         this might prove useful or enhance code readability
     """
@@ -9,7 +9,7 @@ class CustomWall(Wall):
     def __init__(self, w, h):
         super().__init__(w, h)
 
-    
+
 def solve(instance: Instance) -> Solution:
     """Write your code here
 
