@@ -9,18 +9,7 @@ class CustomWall(Wall):
     def __init__(self, w, h):
         super().__init__(w, h)
 
-class CustomSolution(Solution):
-    def __init__(self, solution: 'CustomSolution', new_item: Tuple[int,int,int,int], instance: Instance):
-        self.items: List[Tuple[int,int,int,int]] = solution.items.copy()
-        self.items_by_wall = {iter[0]:iter[1].copy() for iter in solution.items_by_wall.items()}
-        self.nwalls = solution.nwalls
-        self.placed_art_ids = solution.placed_art_ids.copy()
-        self.available_tile_count: List[int] = solution.available_tile_count.copy()
-        self.available_tiles: dict[int : List[List[int]]] = {
-            wall_id : [iter.copy() for iter in solution.available_tiles[wall_id]]
-            for wall_id in solution.available_tiles.keys()
-        }
-    
+class CustomSolution(Solution):    
     def __init__(self,items: List[Tuple[int,int,int,int]], instance: Instance):
         super().__init__(items)
         self.placed_art_ids = set([iter[0] for iter in items])
