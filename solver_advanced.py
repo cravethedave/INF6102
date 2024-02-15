@@ -4,14 +4,19 @@ from typing import Iterator
 
 from utils import *
 
-HEURISTIC = {'nbr_wall': True,
-             'empty': False,
-             'last_wall': False}
-
 
 class CustomSolution(Solution):
-    def __init__(self, items: List[Tuple[int, int, int, int]]):
+    def __init__(self, items: List[Tuple[int, int, int, int]], instance: Instance):
         super().__init__(items)
+        self.available_tile_count = {}
+        for item in items:
+            art_id = item[0]
+            wall_id = item[1]
+            art_w = instance.artpieces_dict[art_id].width()
+            art_h = instance.artpieces_dict[art_id].height()
+            if wall_id not in self.available_tile_count:
+                self.available_tile_count[wall_id] = instance.wall.height() * instance.wall.width()
+            self.available_tile_count[wall_id] -= art_w * art_h
 
     def __len__(self):
         return len(self.items)
@@ -21,51 +26,41 @@ class CustomSolution(Solution):
         piece_in_solution = [piece for piece in instance.artpieces if piece.get_idx() in pieces_id]
         return piece_in_solution
 
-    def evaluate(self, instance: Instance) -> float:
+    def evaluate(self) -> float:
         """
         The lower the better the solution is
         """
-        sol_quality = 0.
-        if HEURISTIC['nbr_wall']:  # Nombre de murs
-            sol_quality += self.nwalls
-
-        if HEURISTIC['empty']:  # Ratio de tuiles non occupées
-            empty_tiles = self.get_empty_tiles(instance)
-            nbr_tiles = self.nwalls * instance.wall.width() * instance.wall.height()
-            sol_quality += empty_tiles / nbr_tiles
-
-        if HEURISTIC['last_wall']:  # Nombre de pièces sur le dernier mur
-            last_wall_id = len(self.items_by_wall) - 1
-            piece_on_last_wall = len(self.items_by_wall[last_wall_id])
-            sol_quality -= piece_on_last_wall
+        sol_quality = sum([self.available_tile_count[w_id] for w_id in range(self.nwalls - 1)])
 
         return sol_quality
 
-    def add(self, item: tuple[int, int, int, int]):
+    def add(self, item: tuple[int, int, int, int], instance: Instance):
         """
         Complexité O(1) - Complexité de len(dict) est constante selon internet
         """
         self.items.append(item)
         if item[1] not in self.items_by_wall:
             self.items_by_wall[item[1]] = []
+            self.available_tile_count[item[1]] = instance.wall.height() * instance.wall.width()
         self.items_by_wall[item[1]].append(item)
+        art_w = instance.artpieces_dict[item[0]].width()
+        art_h = instance.artpieces_dict[item[0]].height()
+        self.available_tile_count[item[1]] -= art_w * art_h
         self.nwalls = len(self.items_by_wall)
 
-    def remove(self, item: tuple[int, int, int, int]):
+    def remove(self, item: tuple[int, int, int, int], instance: Instance):
         """
         Complexité O(1) - Complexité de len(dict) est constante selon internet
         """
         self.items.remove(item)
         self.items_by_wall[item[1]].remove(item)
+        art_w = instance.artpieces_dict[item[0]].width()
+        art_h = instance.artpieces_dict[item[0]].height()
+        self.available_tile_count[item[1]] += art_w * art_h
         self.nwalls = len(self.items_by_wall)
 
-    def get_empty_tiles(self, instance: Instance):
-        occupied_tiles = sum([p.width() * p.height() for p in self.get_piece_in_solution(instance)])
-
-        wall_area = instance.wall.width() * instance.wall.height()
-        empty_tiles = self.nwalls * wall_area - occupied_tiles
-
-        return empty_tiles
+    def get_empty_tiles(self):
+        return sum([self.available_tile_count[wall_id] for wall_id in self.available_tile_count])
 
 
 def piece_overlap(instance: Instance, solution: CustomSolution, item: Tuple[int, int, int, int]):
@@ -83,6 +78,8 @@ def piece_overlap(instance: Instance, solution: CustomSolution, item: Tuple[int,
     height_1 = instance.artpieces_dict[piece_id].height()
 
     for p_id, _, x_pos_2, y_pos_2 in solution.items_by_wall[wall_id]:
+        if p_id == piece_id:
+            continue
         width_2 = instance.artpieces_dict[p_id].width()
         height_2 = instance.artpieces_dict[p_id].height()
 
@@ -95,6 +92,16 @@ def piece_overlap(instance: Instance, solution: CustomSolution, item: Tuple[int,
     return overlap
 
 
+# Voisinage inversion d'une sous liste
+def sub_invert_gen(liste: list[int]) -> Iterator[list[int]]:
+    permutations = list(combinations(range(len(liste)), 2))
+    random.shuffle(permutations)
+
+    for i, j in permutations:
+        yield liste[:i] + liste[i:j + 1][::-1] + liste[j + 1:]
+
+
+# Voisinage two-swap
 def two_swaps_gen(liste: list[int]) -> Iterator[list[int]]:
     list_swaps = list(combinations(range(len(liste)), 2))
     random.shuffle(list_swaps)  # On mélange les permutations possibles
@@ -124,7 +131,7 @@ def grid_order_iterator(width: int,
 
 
 def place_order(instance: Instance, ordered_piece_id: list[int]) -> CustomSolution:
-    solution = CustomSolution([])
+    solution = CustomSolution([], instance)
     len_solution = 0
     nbr_wall = 0
     wall_w, wall_h = instance.wall.width(), instance.wall.height()
@@ -134,20 +141,32 @@ def place_order(instance: Instance, ordered_piece_id: list[int]) -> CustomSoluti
     while len_solution < instance.n:
         coord_iter = grid_order_iterator(width=instance.wall.width(), height=instance.wall.height(),
                                          skipped_coord=skipped_coord)
-        # TODO : quel est le meilleur ? Parcourir les coords puis les oeuvres ou les oeuvres puis les coords ?
         for coord in coord_iter:
             for piece_id in [p for p in piece_to_place.keys() if piece_to_place[p] == 0]:
                 piece_item = (piece_id, nbr_wall, coord[0], coord[1])
 
+                solution.add(piece_item, instance)
+
+                art_w = instance.artpieces_dict[piece_item[0]].width()
+                art_h = instance.artpieces_dict[piece_item[0]].height()
+                if len(solution) > 0 and art_w * art_h > solution.available_tile_count[piece_item[1]]:
+                    solution.remove(piece_item, instance)
+                    continue
+
                 # Si la pièce "ne rentre pas dans l'espace restant", on essaie la pièce suivante
                 piece_exceeds_wall = (coord[0] + instance.artpieces_dict[piece_id].width() > wall_w) or (
                         coord[1] + instance.artpieces_dict[piece_id].height() > wall_h)
-                if piece_exceeds_wall or piece_overlap(instance, solution, piece_item):
+                if piece_exceeds_wall:
+                    solution.remove(piece_item, instance)
+                    continue
+
+                is_piece_overlap = piece_overlap(instance, solution, piece_item)
+                if is_piece_overlap:
+                    solution.remove(piece_item, instance)
                     continue
 
                 # Sinon la pièce "rentre" dans l'espace restant du mur, elle est ajoutée à la solution
                 else:
-                    solution.add(piece_item)
                     len_solution += 1
                     piece_to_place[piece_id] = 1
                     skipped_coord += [(coord[0],
@@ -163,7 +182,7 @@ def place_order(instance: Instance, ordered_piece_id: list[int]) -> CustomSoluti
     return solution
 
 
-def solve(instance: Instance, exec_time: float = 60.) -> CustomSolution:
+def solve(instance: Instance, exec_time: float = 5 * 60.) -> CustomSolution:
     """Write your code here
 
     Args:
@@ -179,33 +198,30 @@ def solve(instance: Instance, exec_time: float = 60.) -> CustomSolution:
     new_sol_found = False
 
     # Solution initiale
-    # On place les pièces les plus carrés d'abord (par exemple)
-
-    current_order = [piece.get_idx() for piece in
-                     sorted(instance.artpieces, key=lambda p: abs(p.width() - p.height()))]
-    # print('Construction sol init...')
+    current_order = list(range(1, len(instance.artpieces) + 1))
     best_sol = place_order(instance=instance, ordered_piece_id=current_order)
-    # print('Solution initiale construite', best_sol.evaluate(instance))
+    print(
+        f"{best_sol.nwalls} walls with a score of {best_sol.evaluate()} with the solution {[iter_[0] for iter_ in best_sol.items]}")
 
     # Exploration des voisins
     while time.time() < time_out:
-        for ord_ in two_swaps_gen(current_order):
+        for ord_ in sub_invert_gen(current_order):
             new_sol_found = False
-            # print('Temps restant : ', round(time_out - time.time()))
             if time.time() >= time_out:  # Si on a dépassé le temps, on sort de la boucle
                 break
 
-            # print('Construction voisin...')
             neighbour = place_order(instance=instance, ordered_piece_id=ord_)  # Construction du voisin
-            # print('Voisin construit', neighbour.evaluate(instance))
 
-            if neighbour.evaluate(instance) <= best_sol.evaluate(instance):
+            if neighbour.evaluate() < best_sol.evaluate():
                 # print('Nouvelle solution adoptée')
                 best_sol = neighbour
+                print(
+                    f"{best_sol.nwalls} walls with a score of {best_sol.evaluate()} with the solution {[iter_[0] for iter_ in best_sol.items]}")
                 new_sol_found = True
                 break
 
         if not new_sol_found:  # Relance aléatoire
             random.shuffle(current_order)
+            print('Relance')
 
     return best_sol
