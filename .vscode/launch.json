@@ -7,7 +7,7 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": ["--agent","advanced","--group","easy","--number","2"]
+            "args": ["--agent","advanced","--group","hard","--number","6"]
         }
     ]
 }

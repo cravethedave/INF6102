@@ -10,6 +10,17 @@ class CustomWall(Wall):
         super().__init__(w, h)
 
 class CustomSolution(Solution):
+    def __init__(self, solution: 'CustomSolution', new_item: Tuple[int,int,int,int], instance: Instance):
+        self.items: List[Tuple[int,int,int,int]] = solution.items.copy()
+        self.items_by_wall = {iter[0]:iter[1].copy() for iter in solution.items_by_wall.items()}
+        self.nwalls = solution.nwalls
+        self.placed_art_ids = solution.placed_art_ids.copy()
+        self.available_tile_count: List[int] = solution.available_tile_count.copy()
+        self.available_tiles: dict[int : List[List[int]]] = {
+            wall_id : [iter.copy() for iter in solution.available_tiles[wall_id]]
+            for wall_id in solution.available_tiles.keys()
+        }
+    
     def __init__(self,items: List[Tuple[int,int,int,int]], instance: Instance):
         super().__init__(items)
         self.placed_art_ids = set([iter[0] for iter in items])
@@ -27,12 +38,8 @@ class CustomSolution(Solution):
                 self.add_wall(instance.wall)
             self.available_tile_count[wall_id] -= art_w * art_h
             
-            # print("Size of this wall:", len(self.available_tiles[wall_id]),len(self.available_tiles[wall_id][0]))
-            # print("Pos of this painting:", art_x,art_y)
-            # print("Size of this painting:", instance.artpieces[art_id - 1].width(),instance.artpieces[art_id - 1].height())
             for x in range(art_x, art_x + art_w):
                 for y in range(art_y, art_y + art_h):
-                    # print("current insert pos: ", x,y)
                     self.available_tiles[wall_id][x][y] = 1
 
     def add_wall(self, wall: Wall):
@@ -59,7 +66,6 @@ def solve(instance: Instance) -> Solution:
                   a list of tuples of the form (<artipiece_id>, <wall_id>, <x_pos>, <y_pos>)
     """
     solution = CustomSolution([], instance)
-    # print(solution)
     
     
     # optional, maybe add randomization here for restarts
@@ -80,8 +86,6 @@ def solve(instance: Instance) -> Solution:
             solution = fit_art_on_wall(instance, solution, instance.artpieces[art_id - 1], wall_id)
         print("total placed: ", len(solution.items))
     
-    # print(solution)
-    
     return solution
         
 
@@ -97,7 +101,7 @@ def fit_art_on_wall(instance: Instance, solution: CustomSolution, art_piece: Art
     wall_w = instance.wall.width()
     wall_h = instance.wall.height()
     for coord_sum in range(wall_w + wall_h + 1):
-        for x in range(min(coord_sum + 1, wall_w)):
+        for x in range(max(0, coord_sum - wall_h + 1), min(coord_sum + 1, wall_w)):
             y = coord_sum - x
             
             # Skip if the shape isn't within the bounds
@@ -108,7 +112,7 @@ def fit_art_on_wall(instance: Instance, solution: CustomSolution, art_piece: Art
             if solution.available_tiles[wall_id][x][y] == 1:
                 continue
             
-            # TODO Change construction
+            # TODO maybe change construction?
             new_solution = CustomSolution(solution.items + [(art_piece.get_idx(), wall_id, x, y)], instance)
             # TODO Change matrix to use distances and not occupation
             if instance.is_valid_solution(new_solution):
