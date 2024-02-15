@@ -47,7 +47,7 @@ if __name__ == '__main__':
     solving_time = round((time.time() - start_time) / 60, 2)
 
     # You can disable the display if you do not want to generate the visualization
-    instance.visualize_solution(solution, visualisation_file=args.visualisation_file)
+    instance.visualize_solution(solution, visualisation_file=args.visualisation_file, show=False)
     #
     instance.save_solution(solution, args.outdir)
     print("***********************************************************")
