@@ -7,7 +7,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/main.py",
             "console": "integratedTerminal",
-            "args": ["--agent","advanced","--group","hard","--number","6"]
+            "args": ["--agent","advanced","--group","test","--number","1"]
         }
     ]
 }
