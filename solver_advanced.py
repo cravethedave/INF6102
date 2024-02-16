@@ -1,5 +1,4 @@
 from utils import *
-import numpy as np
 
 class CustomWall(Wall):
 
@@ -10,11 +9,10 @@ class CustomWall(Wall):
     def __init__(self, w, h):
         super().__init__(w, h)
 
-class CustomSolution(Solution):    
+class CustomSolution(Solution):
     def __init__(self,items: List[Tuple[int,int,int,int]], instance: Instance):
         super().__init__(items)
         self.placed_art_ids = set([iter[0] for iter in items])
-        self.available_tiles: dict[int : List[List[int]]] = {}
         '''
         The dictionary key is the wall id and the values are a 2D matrix
         where each cell contains two values wrapped in a tuple. The first
@@ -32,16 +30,16 @@ class CustomSolution(Solution):
             art_w = instance.artpieces[art_id - 1].width()
             art_h = instance.artpieces[art_id - 1].height()
             
-            if not wall_id in self.available_tiles.keys():
+            if not wall_id in self.space_matrix.keys():
                 self.add_wall(instance.wall)
             self.available_tile_count[wall_id] -= art_w * art_h
                 
             # Sets the block as being taken
             for x in range(art_x, art_x + art_w):
                 for y in range(art_y, art_y + art_h):
-                    self.available_tiles[wall_id][x][y] = 1
                     self.space_matrix[wall_id][x][y] = (0,0)
             
+            # TODO optimize this (Currently never used so ignore it)
             # Adjusts left of the block
             for y in range(art_y, art_y + art_h):
                 for x in range(art_x - 1, -1, -1): # Goes backwards so we can skip some tiles
@@ -61,13 +59,10 @@ class CustomSolution(Solution):
                     self.space_matrix[wall_id][x][y] = (space_x, art_y - y)
 
     def add_wall(self, wall: Wall):
-        wall_w = wall.width()
-        wall_h = wall.height()
         new_wall_id = len(self.available_tile_count)
-        self.available_tile_count.append(wall_w * wall_h)
-        self.available_tiles[new_wall_id] = [[0]*wall_h for _ in range(wall_w)]
+        self.available_tile_count.append(wall.width() * wall.height())
         self.space_matrix[new_wall_id] = [
-            [(wall_w - x,wall_h - y) for y in range(wall.height())]
+            [(wall.width() - x, wall.height() - y) for y in range(wall.height())]
             for x in range(wall.width())
         ]
 
@@ -92,7 +87,6 @@ class CustomSolution(Solution):
         # Sets the block as being taken
         for x in range(art_x, art_x + art_w):
             for y in range(art_y, art_y + art_h):
-                self.available_tiles[wall_id][x][y] = 1
                 self.space_matrix[wall_id][x][y] = (0,0)
         
         # Adjusts left of the block
@@ -112,17 +106,6 @@ class CustomSolution(Solution):
                 if space_x == 0:
                     break
                 self.space_matrix[wall_id][x][y] = (space_x, art_y - y)
-
-    # def add(self, art_id, wall_id, x, y):
-    #     item = (art_id, wall_id, x, y)
-    #     self.items.append(item)
-    #     if wall_id not in self.items_by_wall:
-    #         self.items_by_wall[wall_id] = []
-    #     self.items_by_wall[wall_id].append(item)
-    #     self.placed_art_ids.append(art_id)
-
-def get_art_piece(art_id: int, instance: Instance) -> ArtPiece:
-    return instance.artpieces[art_id - 1]
 
 def solve(instance: Instance) -> Solution:
     """Write your code here
@@ -146,19 +129,18 @@ def solve(instance: Instance) -> Solution:
     }
     ordered_art_pieces = [iter[0] for iter in sorted(ordered_art_pieces.items(), key= lambda item: -item[1])]
     
-    wall_id = -1
+    wall_id = 0
     while not len(solution.items) == instance.n:
-        wall_id += 1
         print("wall: ", wall_id)
         solution.add_wall(instance.wall)
         solution.items_by_wall[wall_id] = []
         solution.nwalls += 1
         for art_id in ordered_art_pieces:
             solution = fit_art_on_wall(instance, solution, instance.artpieces[art_id - 1], wall_id)
-        print("total placed: ", len(solution.items))
+        print("Placed ", len(solution.items), " of ", instance.n)
+        wall_id += 1
     
     return solution
-        
 
 def fit_art_on_wall(instance: Instance, solution: CustomSolution, art_piece: ArtPiece, wall_id) -> CustomSolution:
     # Skip this painting if it has already been placed
@@ -181,5 +163,4 @@ def fit_art_on_wall(instance: Instance, solution: CustomSolution, art_piece: Art
             
             if solution.try_place(instance, art_piece.get_idx(), wall_id, x, y):
                 return solution
-            # TODO Physically remove taken matrix tiles to fully skip them? Might be more work than gain
     return solution
