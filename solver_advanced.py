@@ -1,6 +1,9 @@
 from utils import *
 from itertools import combinations
 import time
+from utils import Instance, List, Tuple
+from collections import deque
+import sys
 
 class CustomWall(Wall):
 
@@ -100,7 +103,7 @@ class CustomSolution(Solution):
                     break
                 self.walls[wall_id].capacity_matrix[x][y] = (space_x, art_y - y)
     
-    def evaluate(self):        
+    def evaluate(self):
         # Bad since the ratio only decreases if # walls goes down
         # Sum of empty tiles
         # self.score = sum([wall.available_tile_count for wall in self.walls])
@@ -117,6 +120,18 @@ class CustomSolution(Solution):
         
         # Sum of empty tiles before last wall
         self.score = sum([wall.available_tile_count for wall in self.walls[:-1]])
+        
+        # Sum of empty tiles weighted by wall number
+        # n = len(self.walls)
+        # self.score = sum([wall.available_tile_count*(n - iter) for iter, wall in enumerate(self.walls[:-1])])
+
+class TabuSearch():
+    def __init__(self):
+        self.MEMORY = 5
+        
+        self.best_neighbor: CustomSolution
+        self.best_score: int = sys.maxsize
+        self.ignored_art_ids: deque[int] = deque([])
 
 def solve(instance: Instance) -> Solution:
     """
@@ -146,11 +161,12 @@ def solve(instance: Instance) -> Solution:
     current_custom_solution: CustomSolution = place_pieces_in_order(instance, ordered_art_ids)
     best_solution: Solution = Solution(current_custom_solution.items)
     best_score = current_custom_solution.score
-    print(f"{best_solution.nwalls} walls with a score of {best_score} with the solution {[iter[0] for iter in best_solution.items]}")
+    print(f"{best_solution.nwalls} walls with a score of {best_score} with {best_solution.nwalls} walls")
     
     while time.time() < END_TIME:
-        current_custom_solution = local_search(current_custom_solution, instance, END_TIME)
+        current_custom_solution = swap_last_local_search(current_custom_solution, instance, END_TIME)
         # This is added to provide an anytime solution
+        # print(f"Time left {END_TIME - time.time()}")
         if time.time() >= END_TIME:
             break
         if current_custom_solution.score < best_score:
@@ -161,25 +177,11 @@ def solve(instance: Instance) -> Solution:
             # It cannot be greater so they are equal
             # Do a restart
             random.shuffle(ordered_art_ids)
-            print(f"Restarting with {ordered_art_ids}")
+            # print(f"Restarting with {ordered_art_ids}")
             current_custom_solution = place_pieces_in_order(instance, ordered_art_ids)
 
     print(f"Time taken is {time.time() - END_TIME + TIME_IN_SECONDS}")
     return best_solution
-    
-    '''
-        Add local search using (two swap based on order of placement):
-            from itertools import combinations
-            list(combinations(range(length_of_my_list_to_iterate), 2))
-            random.shuffle(list_of_some_kind)
-        Then add evaluation functions and keep the first neighbor which reduces that eval function
-        
-        These could be good heuristics:
-            min(wall_occupied_percentage)
-            last_wall_occupied_percentage
-        
-        Do minimal placement algo using new wall tech
-    '''
 
 def place_pieces_in_order(instance: Instance, ordered_art_ids: List[int]) -> CustomSolution:
     solution = CustomSolution([], instance)
@@ -196,7 +198,7 @@ def place_pieces_in_order(instance: Instance, ordered_art_ids: List[int]) -> Cus
     solution.evaluate()
     return solution
 
-def local_search(original_solution: CustomSolution, instance: Instance, END_TIME: int) -> CustomSolution:
+def two_swap_local_search(original_solution: CustomSolution, instance: Instance, END_TIME: int) -> CustomSolution:
     permutations = list(combinations(range(instance.n), 2))
     random.shuffle(permutations)
     ordered_art_ids = [iter[0] for iter in original_solution.items]
@@ -225,6 +227,84 @@ def local_search(original_solution: CustomSolution, instance: Instance, END_TIME
     # return the original solution if no improvements were made
     return original_solution
 
+def swap_last_local_search(original_solution: CustomSolution, instance: Instance, END_TIME: int) -> CustomSolution:
+    permutations = list(range(instance.n))
+    random.shuffle(permutations)
+    ordered_art_ids = [iter[0] for iter in original_solution.items]
+    
+    for index in permutations:
+        # Reconstructs a list with the last element at a new position
+        last = ordered_art_ids[-1]
+        ordered_art_ids[-1] = ordered_art_ids[index]
+        ordered_art_ids[index] = last
+
+        # Solve for a solution
+        solution: CustomSolution = place_pieces_in_order(instance, ordered_art_ids)
+        
+        # We check if this solution passed the allocated time and if so we return the original one
+        if time.time() >= END_TIME:
+            return original_solution
+        
+        # Return the first solution which improves the current best solution
+        if solution.score < original_solution.score:
+            return solution
+        
+        # In the case we did not improve, revert the order before the next permutation
+        ordered_art_ids[index] = ordered_art_ids[-1]
+        ordered_art_ids[-1] = last
+    
+    # return the original solution if no improvements were made
+    return original_solution
+
+def swap_last_tabu_search(best_solution: CustomSolution, instance: Instance, END_TIME: int) -> CustomSolution:
+    INITIAL_PATIENCE = 3
+    patience = INITIAL_PATIENCE
+    permutations = list(range(instance.n))
+    search: TabuSearch = TabuSearch()
+    
+    while patience > 0:
+        # Find the best neighbor to switch with the last element
+        ordered_art_ids = [iter[0] for iter in best_solution.items]
+        last = ordered_art_ids[-1]
+        
+        # We reset this to always find the best neighbor regardless of the current solution
+        search.best_score = sys.maxsize
+        for index in permutations:
+            if ordered_art_ids[index] in search.ignored_art_ids:
+                continue
+            
+            # Swap the last element with the index position
+            ordered_art_ids[-1] = ordered_art_ids[index]
+            ordered_art_ids[index] = last
+            
+            # Solve for a solution
+            solution: CustomSolution = place_pieces_in_order(instance, ordered_art_ids)
+            
+            # We check if this solution passed the allocated time and if so we return the original one
+            if time.time() >= END_TIME:
+                return best_solution
+        
+            if solution.score < search.best_score:
+                search.best_score = solution.score
+                search.best_neighbor = solution
+            
+            # Revert the order before the next permutation
+            ordered_art_ids[index] = ordered_art_ids[-1]
+            ordered_art_ids[-1] = last
+
+        # Add the last index to avoid putting it at the end again
+        search.ignored_art_ids.appendleft(last)
+        # Remove the oldest neighbor
+        if len(search.ignored_art_ids) > search.MEMORY:
+            search.ignored_art_ids.pop()
+        # Adjust the patience
+        patience -= 1
+        if search.best_score < best_solution.score:
+            best_solution = search.best_neighbor
+            patience = INITIAL_PATIENCE
+            
+    return best_solution
+
 def fit_art_on_wall(instance: Instance, solution: CustomSolution, art_piece: ArtPiece, wall_id) -> CustomSolution:
     # Skip this painting if it has already been placed
     if art_piece.get_idx() in solution.placed_art_ids:
@@ -238,13 +318,12 @@ def fit_art_on_wall(instance: Instance, solution: CustomSolution, art_piece: Art
     wall_w = instance.wall.width()
     wall_h = instance.wall.height()
     for coord_sum in range(wall_w + wall_h + 1):
-        for x in range(max(0, coord_sum - wall_h + 1), min(coord_sum + 1, wall_w)):
+        # Constraints: above 0, where the sum is possible, painting doesn't exceed wall height
+        start_x = max(0, coord_sum - wall_h + 1, coord_sum + art_piece.height() - wall_h)
+        # Constraints: where the sum is possible, possible, painting doesn't exceed wall width
+        end_x = min(coord_sum + 1, wall_w - art_piece.width() + 1)
+        for x in range(start_x, end_x):
             y = coord_sum - x
-            
-            # Skip if the shape isn't within the bounds
-            if x + art_piece.width() > wall_w or y + art_piece.height() > wall_h:
-                continue
-            
             if solution.try_place(instance, art_piece.get_idx(), wall_id, x, y):
                 return solution
     return solution
