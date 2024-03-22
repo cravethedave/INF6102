@@ -40,6 +40,7 @@ class TruckAssignation:
         return overload
 
     def cost_assignation(self) -> int:
+        """Count the cost of distance for each truck path"""
         cost = 0
         for truck in self.assignation:
             path = [self.instance.mine] + [self.instance.pizzeria_dict[elem[0] + 1] for elem in truck] + [
@@ -77,7 +78,7 @@ class TruckAssignation:
         return neighbours
 
     def assign_route(self):
-        """Assign trucks based on what pizzeria to visit at one timestep"""
+        """Local search trying to assign trucks based on what pizzeria to visit at one timestep"""
         continue_search = True
         while continue_search:
             continue_search = False
@@ -100,9 +101,10 @@ class Schedule:
         # Le plan par défaut est de livrer des quantités aléatoires
         self._plan = np.random.randint(low=0, high=self.instance.Q / 10,
                                        size=(self.instance.T, len(self.instance.pizzerias)))
-        # Table of profitability of each pizzeria
+        # Table des profits associés à chaque pizzeria
         self._profitable = np.array([(instance.mine.inventoryCost - p.inventoryCost) for p in instance.pizzerias])
 
+        # Assignation des pizzerias à visiter pour les camions
         self.truck_assignations = []
         for t in range(self.instance.T):
             non_zero_delivery = np.nonzero(self._plan[t, :])[0]
@@ -113,6 +115,7 @@ class Schedule:
                                                                         zip(non_zero_delivery, non_zero_qty)]))
 
     def to_solution(self) -> Solution:
+        """Convert Schedule to Solution"""
         raw_solution: list[list[list[tuple[int, float]]]] = []
 
         for timestep in self.truck_assignations:
@@ -122,6 +125,8 @@ class Schedule:
             raw_solution.append(assignation_solution)
         return Solution(npizzerias=len(self.instance.pizzerias), raw_solution=raw_solution)
 
+    #### CONFLICTS FUNCTIONS ####
+    # Les contraintes de capacité globale, capacité des camions et bornes de pizzerias sont des contraintes molles
     def conflict_global_cap(self) -> list[tuple[int, int]]:
         """Search if global capacity (total capacity of trucks or mine dailyProduction) is exceeded at any timestep
         Return conflit : [(timestep, excess_quantity),...]"""
@@ -170,10 +175,14 @@ class Schedule:
         return conflicts
 
     def count_conflicts(self) -> tuple[int, int, int]:
+        """Count conflicts of each type"""
         return len(self.conflict_global_cap()), len(self.conflict_individual_cap()), len(self.conflict_bounds())
 
+    ###########################
+
+    #### SOLUTION QUALITY EVALUATION ####
     def compare_stock(self, other) -> int:
-        """Returns negative value if self is more profitable that other"""
+        """Returns negative value if self is more profitable than other, in terms of stocks price"""
         assert self.instance.pizzeria_dict == other.instance.pizzeria_dict
         assert self.instance.T == other.instance.T
         assert np.array_equal(self._profitable, other._profitable)
@@ -191,11 +200,13 @@ class Schedule:
         return comparison
 
     def compare_route_cost(self, other) -> int:
-        """Returns negative value if self is more profitable that other"""
+        """Returns negative value if self is more profitable than other, in terms of distance travelled by trucks"""
         cost = 0
         for index, assignation in enumerate(self.truck_assignations):
             assignation.cost_assignation() - other.truck_assignations[index].cost_assignation()
         return cost
+
+    ###########################
 
     def assign_all_route(self):
         """Assign trucks for all time-steps"""
@@ -259,6 +270,8 @@ class Schedule:
                                                                          non_zero_qty)]))
         return n
 
+    # Todo : make the neighbours generation more understandable and smarter
+    #  (generate neighbour more likely to have less conflict)
     def neighbour_plan(self) -> list:
         neighbours = []
         for i in range(NBR_NEIGHBOURS):
@@ -267,6 +280,7 @@ class Schedule:
         return neighbours
 
     def search_no_conflict(self) -> None:
+        """Local search to find solution without conflicts"""
         print(self.count_conflicts())
         conflicts = True
         while conflicts:
@@ -285,9 +299,9 @@ def solve(instance: Instance, time_limit):
     start = time.time()
     sched = Schedule(instance=instance)
     print("Minimizing conflicts")
-    sched.search_no_conflict()
+    sched.search_no_conflict()  # Searching for solutions with no conflicts
     print("Maximizing profits")
-    while time.time() - start < time_limit:
+    while time.time() - start < time_limit:  # Once a solution with no conflicts is found, we try to decrease its cost
         neighbours = sched.neighbour_plan()
         for n in neighbours:
             if n.count_conflicts() == 0:
