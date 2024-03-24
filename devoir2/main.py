@@ -1,6 +1,13 @@
+#!/home/cravethedave/session/INF6102/devoirs/.venv/bin/python3
+
 import argparse
 import solver_naive
 import solver_advanced
+import ben_solution
+import ben_solution_2
+import david_first
+import david_second
+import david_third
 import time
 from utils import Instance
 
@@ -12,6 +19,7 @@ def parse_arguments():
     parser.add_argument('--agent', type=str, default='naive')
     parser.add_argument('--infile', type=str, default='super_easy.dat')
     parser.add_argument('--outdir', type=str, default='solutions')
+    parser.add_argument('--time', type=int, default=300)
     parser.add_argument('--visualisation_file', type=str, default='visualization')
     parser.add_argument('--viz', action=argparse.BooleanOptionalAction, default=True)
 
@@ -39,8 +47,17 @@ if __name__ == '__main__':
         # assign a different time slot for each course
         solution = solver_naive.solve(instance)
     elif args.agent == "advanced":
-        # Your nice agent
         solution = solver_advanced.solve(instance)
+    elif args.agent == "d1":
+        solution = david_first.solve(instance)
+    elif args.agent == "d2":
+        solution = david_second.solve(instance)
+    elif args.agent == "d3":
+        solution = david_third.solve(instance, args.time)
+    elif args.agent == "ben":
+        solution = ben_solution.solve(instance)
+    elif args.agent == "ben2":
+        solution = ben_solution_2.solve(instance, 60)
     else:
         raise Exception("This agent does not exist")
 

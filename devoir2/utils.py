@@ -1,10 +1,10 @@
 import os
+import imageio
+import matplotlib.pyplot as plt
+import copy
 from typing import List, Tuple, Dict
 from math import sqrt
 make_universal = lambda x: os.sep.join(x.split('/'))
-import matplotlib.pyplot as plt
-import imageio
-import copy
 
 class Solution:
     @classmethod
@@ -69,7 +69,7 @@ class Solution:
         self.raw = raw_solution
 
         self.pizzeria_pov: Dict[int, Dict[int, float]] = {}
-        """ pizzeria_id{timestep:quantity_delivered} """
+        """ pizzeria_id:{timestep:quantity_delivered}"""
 
         self.mine_pov: Dict[int, int] = {}
         """timestep:quantity_pickedup"""
@@ -245,7 +245,9 @@ class Route:
         self.mine = mine
         self.pizzeria_path = [pizzeria_dict[cl] for cl,_ in route]
         self.path = [mine]+self.pizzeria_path+[mine]
-        self.total_goods = sum([q for cl,q in route])
+        # CHANGED HERE
+        self.total_goods = round(sum([q for cl,q in route]), 2)
+        self.temp = [q for cl,q in route]
         euclidean_distance = lambda a,b:int(sqrt((a.x-b.x)**2+(a.y-b.y)**2)+.5)
         self.distance_cost = 0
         for i in range(len(self.path)-1):
@@ -316,6 +318,11 @@ class Instance:
                 route = Route(self.mine,r,self.pizzeria_dict)
                 cost_for_each_timestep_route[t][truck_id]+=route.distance_cost
                 validity_for_each_timestep_route[t][truck_id]&=route.total_goods<=self.Q
+                # CHANGED HERE
+                # if route.total_goods > self.Q:
+                #     print(f"[ERROR] Total is {route.total_goods} for values: ")
+                #     for x in route.temp:
+                #         print(f"\t{x}")
         return  sum([sum(x) for x in cost_for_each_timestep_route]),\
                 cost_for_each_timestep_route,\
                 sum([sum(x) for x in validity_for_each_timestep_route])==len(validity_for_each_timestep_route)*len(validity_for_each_timestep_route[0]),\
