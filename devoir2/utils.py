@@ -246,7 +246,7 @@ class Route:
         self.pizzeria_path = [pizzeria_dict[cl] for cl,_ in route]
         self.path = [mine]+self.pizzeria_path+[mine]
         # CHANGED HERE
-        self.total_goods = round(sum([q for cl,q in route]), 2)
+        self.total_goods = sum([q for cl,q in route])
         self.temp = [q for cl,q in route]
         euclidean_distance = lambda a,b:int(sqrt((a.x-b.x)**2+(a.y-b.y)**2)+.5)
         self.distance_cost = 0
