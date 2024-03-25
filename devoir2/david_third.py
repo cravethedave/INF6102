@@ -1,4 +1,4 @@
-from utils import Pizzeria, Route, Mine, Dict, Tuple, List, sqrt, Instance, Solution
+from utils import Pizzeria, Mine, Instance, Solution
 from math import exp
 import random
 import sys
