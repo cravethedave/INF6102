@@ -387,8 +387,7 @@ def print_solution(instance: Instance, solution: list[list[list[tuple[int, float
 #endregion
 
 
-def solve(instance: Instance, limit: int) -> Solution:
-    # Change this line to change the allocated time to the problem
+def solve(instance: Instance, limit: int = 300) -> Solution:
+    # Change the default parameter value to change the allocated time in seconds to the problem
     # While we were running it, we added a --time flag in main and passed it instead
-    limit = 300
     return Solution(instance.npizzerias, local_search(instance, limit))
